@@ -1,5 +1,5 @@
 // Rust secp256k1 bindings for aggsig functions
-// 2018 The Grin developers
+// 2021 The Grin developers
 //
 // To the extent possible under law, the author(s) have dedicated all
 // copyright and related and neighboring rights to this software to
@@ -13,13 +13,17 @@
 
 //! # Aggregated Signature (a.k.a. Schnorr) Functionality
 
-use libc::size_t;
-use crate::ffi;
-use crate::key::{PublicKey, SecretKey};
-use rand::{thread_rng, Rng};
+use ffi;
+use ffi::types::size_t;
+use key::{PublicKey, SecretKey};
+#[cfg(any(test, feature = "rand"))]
+use rand::{thread_rng, RngCore};
 use std::ptr;
-use crate::Secp256k1;
-use crate::{AggSigPartialSignature, Error, Message, Signature};
+use super::{AggSigPartialSignature, Error, Message, Secp256k1, Signature};
+
+use Verification;
+#[cfg(any(test, feature = "rand"))]
+use {Context, Signing};
 
 const SCRATCH_SPACE_SIZE: size_t = 1024 * 1024;
 
@@ -33,10 +37,12 @@ pub const ZERO_256: [u8; 32] = [
 /// In:
 /// msg: the message to sign
 /// seckey: the secret key
-pub fn export_secnonce_single(secp: &Secp256k1) -> Result<SecretKey, Error> {
-	let mut return_key = SecretKey::new(&secp, &mut thread_rng());
+#[inline]
+#[cfg(any(test, feature = "rand"))]
+pub fn export_secnonce_single<C: Signing>(secp: &Secp256k1<C>) -> Result<SecretKey, Error> {
+	let mut return_key = SecretKey::new(&mut thread_rng());
 	let mut seed = [0u8; 32];
-	thread_rng().fill(&mut seed);
+	thread_rng().fill_bytes(&mut seed);
 	let retval = unsafe {
 		ffi::secp256k1_aggsig_export_secnonce_single(
 			secp.ctx,
@@ -55,7 +61,7 @@ macro_rules! is_zero_pubkey {
 	(reterr => $e:expr) => {
 		match $e {
 			Some(n) => {
-				if (n.0).0.starts_with(&ZERO_256) {
+				if (n.0).underlying_bytes().starts_with(&ZERO_256) {
 					return Err(Error::InvalidPublicKey);
 					}
 				n.as_ptr()
@@ -66,7 +72,7 @@ macro_rules! is_zero_pubkey {
 	(retfalse => $e:expr) => {
 		match $e {
 			Some(n) => {
-				if (n.0).0.starts_with(&ZERO_256) {
+				if (n.0).underlying_bytes().starts_with(&ZERO_256) {
 					return false;
 					}
 				n.as_ptr()
@@ -85,8 +91,10 @@ macro_rules! is_zero_pubkey {
 /// secnonce: if Some(SecretKey), the secret nonce to use. If None, generate a nonce
 /// pubnonce: if Some(PublicKey), overrides the public nonce to encode as part of e
 /// final_nonce_sum: if Some(PublicKey), overrides the public nonce to encode as part of e
-pub fn sign_single(
-	secp: &Secp256k1,
+#[inline]
+#[cfg(any(test, feature = "rand"))]
+pub fn sign_single<C: Signing>(
+	secp: &Secp256k1<C>,
 	msg: &Message,
 	seckey: &SecretKey,
 	secnonce: Option<&SecretKey>,
@@ -95,9 +103,9 @@ pub fn sign_single(
 	pubkey_for_e: Option<&PublicKey>,
 	final_nonce_sum: Option<&PublicKey>,
 ) -> Result<Signature, Error> {
-	let mut retsig = Signature::from(ffi::Signature::new());
+    let mut retsig = unsafe { Signature::from(ffi::Signature::new()) };
 	let mut seed = [0u8; 32];
-	thread_rng().fill(&mut seed);
+	thread_rng().fill_bytes(&mut seed);
 
 	let secnonce = match secnonce {
 		Some(n) => n.as_ptr(),
@@ -144,8 +152,8 @@ pub fn sign_single(
 /// pubkey: the public key
 /// pubkey_total: The total of all public keys (for the message in e)
 /// is_partial: whether this is a partial sig, or a fully-combined sig
-pub fn verify_single(
-	secp: &Secp256k1,
+pub fn verify_single<C: Verification>(
+	secp: &Secp256k1<C>,
 	sig: &Signature,
 	msg: &Message,
 	pubnonce: Option<&PublicKey>,
@@ -165,7 +173,7 @@ pub fn verify_single(
 		false => 0,
 	};
 
-	if (sig.0).0.starts_with(&ZERO_256) || (pubkey.0).0.starts_with(&ZERO_256) {
+	if (sig.0).underlying_bytes().starts_with(&ZERO_256) || (pubkey.0).underlying_bytes().starts_with(&ZERO_256) {
 		return false;
 	}
 
@@ -195,8 +203,8 @@ pub fn verify_single(
 /// sigs: The signatures
 /// msg: The messages to verify
 /// pubkey: The public keys
-pub fn verify_batch(
-	secp: &Secp256k1,
+pub fn verify_batch<C: Verification>(
+	secp: &Secp256k1<C>,
 	sigs: &Vec<Signature>,
 	msgs: &Vec<Message>,
 	pub_keys: &Vec<PublicKey>,
@@ -206,7 +214,7 @@ pub fn verify_batch(
 	}
 
 	for i in 0..pub_keys.len() {
-		if (pub_keys[i].0).0.starts_with(&ZERO_256) {
+		if (pub_keys[i].0).underlying_bytes().starts_with(&ZERO_256) {
 			return false;
 		}
 	}
@@ -236,12 +244,12 @@ pub fn verify_batch(
 /// sig1: sig1 to add
 /// sig2: sig2 to add
 /// pubnonce_total: sum of public nonces
-pub fn add_signatures_single(
-	secp: &Secp256k1,
+pub fn add_signatures_single<C: Verification>(
+	secp: &Secp256k1<C>,
 	sigs: Vec<&Signature>,
 	pubnonce_total: &PublicKey,
 ) -> Result<Signature, Error> {
-	let mut retsig = Signature::from(ffi::Signature::new());
+    let mut retsig = unsafe { Signature::from(ffi::Signature::new()) };
 	let sig_vec = map_vec!(sigs, |s| s.0.as_ptr());
 	let retval = unsafe {
 		ffi::secp256k1_aggsig_add_signatures_single(
@@ -268,9 +276,11 @@ pub struct AggSigContext {
 
 impl AggSigContext {
 	/// Creates new aggsig context with a new random seed
-	pub fn new(secp: &Secp256k1, pubkeys: &Vec<PublicKey>) -> AggSigContext {
+    #[inline]
+    #[cfg(any(test, feature = "rand"))]
+	pub fn new<C: Context>(secp: &Secp256k1<C>, pubkeys: &Vec<PublicKey>) -> AggSigContext {
 		let mut seed = [0u8; 32];
-		thread_rng().fill(&mut seed);
+		thread_rng().fill_bytes(&mut seed);
 		let pubkeys: Vec<*const ffi::PublicKey> = pubkeys.into_iter().map(|p| p.as_ptr()).collect();
 		let pubkeys = &pubkeys[..];
 		unsafe {
@@ -312,7 +322,8 @@ impl AggSigContext {
 		seckey: SecretKey,
 		index: usize,
 	) -> Result<AggSigPartialSignature, Error> {
-		let mut retsig = AggSigPartialSignature::from(ffi::AggSigPartialSignature::new());
+        let mut retsig =
+             unsafe { AggSigPartialSignature::from(ffi::AggSigPartialSignature::new()) };
 		let retval = unsafe {
 			ffi::secp256k1_aggsig_partial_sign(
 				self.ctx,
@@ -337,7 +348,7 @@ impl AggSigContext {
 		&self,
 		partial_sigs: &Vec<AggSigPartialSignature>,
 	) -> Result<Signature, Error> {
-		let mut retsig = Signature::from(ffi::Signature::new());
+		let mut retsig = unsafe { Signature::from(ffi::Signature::new()) };
 		let partial_sigs: Vec<*const ffi::AggSigPartialSignature> =
 			partial_sigs.into_iter().map(|p| p.as_ptr()).collect();
 		let partial_sigs = &partial_sigs[..];
@@ -399,16 +410,15 @@ mod tests {
 	use crate::ffi;
 	use crate::key::{PublicKey, SecretKey};
 	use rand::{thread_rng, Rng};
-	use crate::ContextFlag;
 	use crate::{AggSigPartialSignature, Message, Signature};
 
 	#[test]
 	fn test_aggsig_multisig() {
 		let numkeys = 5;
-		let secp = Secp256k1::with_caps(ContextFlag::Full);
+		let secp = Secp256k1::new();
 		let mut keypairs: Vec<(SecretKey, PublicKey)> = vec![];
 		for _ in 0..numkeys {
-			keypairs.push(secp.generate_keypair(&mut thread_rng()).unwrap());
+			keypairs.push(secp.generate_keypair(&mut thread_rng()));
 		}
 		let pks: Vec<PublicKey> = keypairs.clone().into_iter().map(|(_, p)| p).collect();
 		println!(
@@ -464,8 +474,8 @@ mod tests {
 
 	#[test]
 	fn test_aggsig_single() {
-		let secp = Secp256k1::with_caps(ContextFlag::Full);
-		let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();
+		let secp = Secp256k1::new();
+		let (sk, pk) = secp.generate_keypair(&mut thread_rng());
 
 		println!(
 			"Performing aggsig single context with seckey, pubkey: {:?},{:?}",
@@ -500,7 +510,7 @@ mod tests {
 		let mut msg = [0u8; 32];
 		thread_rng().fill(&mut msg);
 		let msg = Message::from_slice(&msg).unwrap();
-		let (sk_extra, pk_extra) = secp.generate_keypair(&mut thread_rng()).unwrap();
+		let (sk_extra, pk_extra) = secp.generate_keypair(&mut thread_rng());
 		let sig = sign_single(&secp, &msg, &sk, None, Some(&sk_extra), None, None, None).unwrap();
 		let result = verify_single(&secp, &sig, &msg, None, &pk, None, Some(&pk_extra), false);
 		assert!(result == true);
@@ -508,14 +518,14 @@ mod tests {
 
 	#[test]
 	fn test_aggsig_batch() {
-		let secp = Secp256k1::with_caps(ContextFlag::Full);
+		let secp = Secp256k1::new();
 
 		let mut sigs: Vec<Signature> = vec![];
 		let mut msgs: Vec<Message> = vec![];
 		let mut pub_keys: Vec<PublicKey> = vec![];
 
 		for _ in 0..100 {
-			let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();
+			let (sk, pk) = secp.generate_keypair(&mut thread_rng());
 			let mut msg = [0u8; 32];
 			thread_rng().fill(&mut msg);
 
@@ -537,8 +547,8 @@ mod tests {
 
 	#[test]
 	fn test_aggsig_fuzz() {
-		let secp = Secp256k1::with_caps(ContextFlag::Full);
-		let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();
+		let secp = Secp256k1::new();
+		let (sk, pk) = secp.generate_keypair(&mut thread_rng());
 
 		println!(
 			"Performing aggsig single context with seckey, pubkey: {:?},{:?}",
@@ -557,8 +567,10 @@ mod tests {
 			*elem = sig.0[i];
 			i += 1;
 		}
-		let corrupted_sig: Signature = Signature {
-			0: ffi::Signature(*corrupted),
+		let corrupted_sig: Signature = unsafe { 
+			Signature {
+				0: ffi::Signature::from_array_unchecked(*corrupted),
+			}
 		};
 		println!(
 			"Verifying aggsig single: {:?}, msg: {:?}, pk:{:?}",
@@ -575,8 +587,10 @@ mod tests {
 			*elem = sig.0[i];
 			i += 1;
 		}
-		let corrupted_sig: Signature = Signature {
-			0: ffi::Signature(*corrupted),
+		let corrupted_sig: Signature = unsafe {
+			Signature {
+				0: ffi::Signature::from_array_unchecked(*corrupted),
+			}
 		};
 		println!(
 			"Verifying aggsig single: {:?}, msg: {:?}, pk:{:?}",
@@ -587,7 +601,7 @@ mod tests {
 		assert!(result == false);
 
 		// force pk as 0 to simulate Fuzz test
-		let zero_pk = PublicKey::new();
+		let zero_pk = unsafe { PublicKey::from(ffi::PublicKey::new()) };
 		println!(
 			"Verifying aggsig single: {:?}, msg: {:?}, pk:{:?}",
 			sig, msg, zero_pk
@@ -618,8 +632,10 @@ mod tests {
 			*elem = pk.0[i];
 			i += 1;
 		}
-		let corrupted_pk: PublicKey = PublicKey {
-			0: ffi::PublicKey(*corrupted),
+		let corrupted_pk: PublicKey = unsafe {
+			PublicKey {
+				0: ffi::PublicKey::from_array_unchecked(*corrupted),
+			}
 		};
 		println!(
 			"Verifying aggsig single: {:?}, msg: {:?}, pk:{:?}",
@@ -630,7 +646,7 @@ mod tests {
 		assert!(result == false);
 
 		// more tests on other parameters
-		let zero_pk = PublicKey::new();
+		let zero_pk = unsafe { PublicKey::from(ffi::PublicKey::new()) };
 		let result = verify_single(
 			&secp,
 			&sig,
@@ -664,22 +680,22 @@ mod tests {
 	#[test]
 	fn test_aggsig_exchange() {
 		for _ in 0..20 {
-			let secp = Secp256k1::with_caps(ContextFlag::Full);
+			let secp = Secp256k1::new();
 			// Generate keys for sender, receiver
-			let (sk1, pk1) = secp.generate_keypair(&mut thread_rng()).unwrap();
-			let (sk2, pk2) = secp.generate_keypair(&mut thread_rng()).unwrap();
+			let (sk1, pk1) = secp.generate_keypair(&mut thread_rng());
+			let (sk2, pk2) = secp.generate_keypair(&mut thread_rng());
 
 			// Generate nonces for sender, receiver
 			let secnonce_1 = export_secnonce_single(&secp).unwrap();
 			let secnonce_2 = export_secnonce_single(&secp).unwrap();
 
 			// Calculate public nonces
-			let _ = PublicKey::from_secret_key(&secp, &secnonce_1).unwrap();
-			let pubnonce_2 = PublicKey::from_secret_key(&secp, &secnonce_2).unwrap();
+			let _ = PublicKey::from_secret_key(&secp, &secnonce_1);
+			let pubnonce_2 = PublicKey::from_secret_key(&secp, &secnonce_2);
 
 			// And get the total
 			let mut nonce_sum = pubnonce_2.clone();
-			let _ = nonce_sum.add_exp_assign(&secp, &secnonce_1);
+			let _ = nonce_sum.add_exp_assign(&secp, &secnonce_1[..]);
 
 			// Random message
 			let mut msg = [0u8; 32];
@@ -688,7 +704,7 @@ mod tests {
 
 			// Add public keys (for storing in e)
 			let mut pk_sum = pk2.clone();
-			let _ = pk_sum.add_exp_assign(&secp, &sk1);
+			let _ = pk_sum.add_exp_assign(&secp, &sk1[..]);
 
 			// Receiver signs
 			let sig1 = sign_single(
