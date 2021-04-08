@@ -58,7 +58,7 @@ pub trait Signing: Context {}
 /// Marker trait for indicating that an instance of `Secp256k1` can be used for verification.
 pub trait Verification: Context {}
 
-/// Marker trait for indicating that an instance of `Secp256k1` can be used for commitment.
+/// Marker trait for indicating that an instance of `Secp256k1` can be used for committing.
 pub trait Commit: Context {}
 
 /// Represents the set of capabilities needed for signing with a user preallocated memory.
@@ -71,7 +71,7 @@ pub struct VerifyOnlyPreallocated<'buf> {
     phantom: PhantomData<&'buf ()>,
 }
 
-/// Represents the set of capabilities needed for commitment with a user preallocated memory.
+/// Represents the set of capabilities needed for committing with a user preallocated memory.
 pub struct CommitOnlyPreallocated<'buf> {
     phantom: PhantomData<&'buf ()>,
 }
@@ -91,6 +91,7 @@ mod private {
     impl<'buf> Sealed for AllPreallocated<'buf> {}
     impl<'buf> Sealed for VerifyOnlyPreallocated<'buf> {}
     impl<'buf> Sealed for SignOnlyPreallocated<'buf> {}
+    impl<'buf> Sealed for CommitOnlyPreallocated<'buf> {}
 }
 
 #[cfg(feature = "std")]
@@ -98,6 +99,7 @@ mod std_only {
     impl private::Sealed for SignOnly {}
     impl private::Sealed for All {}
     impl private::Sealed for VerifyOnly {}
+    impl private::Sealed for CommitOnly {}
 
     use super::*;
     use std::alloc;
@@ -109,7 +111,7 @@ mod std_only {
     /// Represents the set of capabilities needed for verification.
     pub enum VerifyOnly {}
 
-    /// Represents the set of capabilities needed for commitment.
+    /// Represents the set of capabilities needed for committing.
     pub enum CommitOnly {}
 
     /// Represents the set of all capabilities.
@@ -146,7 +148,7 @@ mod std_only {
 
     unsafe impl Context for CommitOnly {
         const FLAGS: c_uint = ffi::SECP256K1_START_COMMIT;
-        const DESCRIPTION: &'static str = "commitment only";
+        const DESCRIPTION: &'static str = "committing only";
 
         unsafe fn deallocate(ptr: *mut u8, size: usize) {
             let layout = alloc::Layout::from_size_align(size, ALIGN_TO).unwrap();
@@ -203,8 +205,8 @@ mod std_only {
     }
 
     impl Secp256k1<CommitOnly> {
-        /// Creates a new Secp256k1 context that can only be used for commitment
-        pub fn commitment_only() -> Secp256k1<CommitOnly> {
+        /// Creates a new Secp256k1 context that can only be used for committing
+        pub fn commit_only() -> Secp256k1<CommitOnly> {
             Secp256k1::gen_new()
         }
     }
@@ -258,7 +260,7 @@ unsafe impl<'buf> Context for VerifyOnlyPreallocated<'buf> {
 
 unsafe impl<'buf> Context for CommitOnlyPreallocated<'buf> {
     const FLAGS: c_uint = ffi::SECP256K1_START_COMMIT;
-    const DESCRIPTION: &'static str = "commitment only";
+    const DESCRIPTION: &'static str = "committing only";
 
     unsafe fn deallocate(_ptr: *mut u8, _size: usize) {
         // Allocated by the user

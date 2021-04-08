@@ -24,6 +24,7 @@ rand-std = ["rand/std"]
 recovery = ["secp256k1-sys/recovery"]
 lowmemory = ["secp256k1-sys/lowmemory"]
 global-context = ["std", "rand-std"]
+bullet-proof-sizing = []
 
 [dependencies]
 secp256k1-sys = { version = "0.4.0", default-features = false, path = "./secp256k1-sys" }
@@ -33,6 +34,7 @@ serde = { version = "1.0", default-features = false, optional = true }
 
 
 [dev-dependencies]
+chrono = "0.4"
 rand = "0.6"
 rand_core = "0.4"
 serde_test = "1.0"
