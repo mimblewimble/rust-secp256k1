@@ -258,9 +258,6 @@ impl hash::Hash for KeyPair {
 }
 
 extern "C" {
-    /// Default ECDH hash function
-    pub static secp256k1_ecdh_hash_function_default: EcdhHashFn;
-
     pub static secp256k1_nonce_function_rfc6979: NonceFn;
 
     pub static secp256k1_nonce_function_default: NonceFn;
@@ -322,34 +319,18 @@ extern "C" {
     pub fn secp256k1_ec_seckey_verify(cx: *const Context,
                                       sk: *const c_uchar) -> c_int;
 
-    #[deprecated(since = "0.2.0",note = "Please use the secp256k1_ec_seckey_tweak_add function instead")]
     pub fn secp256k1_ec_privkey_negate(cx: *const Context,
                                        sk: *mut c_uchar) -> c_int;
 
-    pub fn secp256k1_ec_seckey_negate(cx: *const Context,
-                                      sk: *mut c_uchar) -> c_int;
-
-    #[deprecated(since = "0.2.0",note = "Please use the secp256k1_ec_seckey_tweak_add function instead")]
     pub fn secp256k1_ec_privkey_tweak_add(cx: *const Context,
                                           sk: *mut c_uchar,
                                           tweak: *const c_uchar)
                                           -> c_int;
 
-    pub fn secp256k1_ec_seckey_tweak_add(cx: *const Context,
-                                        sk: *mut c_uchar,
-                                        tweak: *const c_uchar)
-                                        -> c_int;
-
-    #[deprecated(since = "0.2.0",note = "Please use the secp256k1_ec_seckey_tweak_mul function instead")]
     pub fn secp256k1_ec_privkey_tweak_mul(cx: *const Context,
                                           sk: *mut c_uchar,
                                           tweak: *const c_uchar)
                                           -> c_int;
-
-    pub fn secp256k1_ec_seckey_tweak_mul(cx: *const Context,
-                                        sk: *mut c_uchar,
-                                        tweak: *const c_uchar)
-                                        -> c_int;
 
     // EC
     pub fn secp256k1_ec_pubkey_create(cx: *const Context, pk: *mut PublicKey,
@@ -398,24 +379,11 @@ extern "C" {
         input32: *const c_uchar,
     ) -> c_int;
 
-    pub fn secp256k1_xonly_pubkey_serialize(
-        cx: *const Context,
-        output32: *mut c_uchar,
-        pubkey: *const XOnlyPublicKey,
-    ) -> c_int;
-
     pub fn secp256k1_xonly_pubkey_from_pubkey(
         cx: *const Context,
         xonly_pubkey: *mut XOnlyPublicKey,
         pk_parity: *mut c_int,
         pubkey: *const PublicKey,
-    ) -> c_int;
-
-    pub fn secp256k1_xonly_pubkey_tweak_add(
-        cx: *const Context,
-        output_pubkey: *mut PublicKey,
-        internal_pubkey: *const XOnlyPublicKey,
-        tweak32: *const c_uchar,
     ) -> c_int;
 
     pub fn secp256k1_keypair_xonly_pub(
@@ -428,14 +396,6 @@ extern "C" {
     pub fn secp256k1_keypair_xonly_tweak_add(
         cx: *const Context,
         keypair: *mut KeyPair,
-        tweak32: *const c_uchar,
-    ) -> c_int;
-
-    pub fn secp256k1_xonly_pubkey_tweak_add_check(
-        cx: *const Context,
-        tweaked_pubkey32: *const c_uchar,
-        tweaked_pubkey_parity: c_int,
-        internal_pubkey: *const XOnlyPublicKey,
         tweak32: *const c_uchar,
     ) -> c_int;
 }
