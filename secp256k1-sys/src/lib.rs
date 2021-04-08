@@ -321,6 +321,13 @@ extern "C" {
                                        seed32: *const c_uchar)
                                        -> c_int;
 
+    // Scratch space
+    pub fn secp256k1_scratch_space_create(cx: *mut Context,
+        max_size: size_t)
+        -> *mut ScratchSpace;
+
+    pub fn secp256k1_scratch_space_destroy(sp: *mut ScratchSpace);
+
     // Pubkeys
     pub fn secp256k1_ec_pubkey_parse(cx: *const Context, pk: *mut PublicKey,
                                      input: *const c_uchar, in_len: size_t)
