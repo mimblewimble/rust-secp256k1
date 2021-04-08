@@ -2,7 +2,7 @@
 // Written in 2014 by
 //   Dawid Ciężarkiewicz
 //   Andrew Poelstra
-// 2018 The Grin Developers
+// 2021 The Grin Developers
 //
 // To the extent possible under law, the author(s) have dedicated all
 // copyright and related and neighboring rights to this software to
@@ -16,23 +16,24 @@
 
 //! # Pedersen commitments and related range proofs
 
-use libc::size_t;
 use std::cmp::min;
 use std::fmt;
 use std::mem;
 use std::ptr;
 use std::u64;
 
-use crate::ContextFlag;
-use crate::Error::{self, InvalidPublicKey, InvalidCommit};
-use crate::Secp256k1;
+use Error::{self, InvalidPublicKey, InvalidCommit};
+use Secp256k1;
 
 use super::{Message, Signature};
 use crate::aggsig::ZERO_256;
 use crate::constants;
-use crate::ffi;
+use ffi;
+use ffi::types::size_t;
 use crate::key::{self, PublicKey, SecretKey};
+#[cfg(any(test, feature = "rand"))]
 use rand::{thread_rng, Rng};
+#[cfg(feature = "serde")]
 use serde::{de, ser};
 
 const MAX_WIDTH: usize = 1 << 20;
@@ -156,6 +157,7 @@ impl Clone for RangeProof {
 	}
 }
 
+#[cfg(feature = "serde")]
 impl ser::Serialize for RangeProof {
 	fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
 	where
@@ -165,8 +167,10 @@ impl ser::Serialize for RangeProof {
 	}
 }
 
+#[cfg(feature = "serde")]
 struct Visitor;
 
+#[cfg(feature = "serde")]
 impl<'di> de::Visitor<'di> for Visitor {
 	type Value = RangeProof;
 
@@ -194,6 +198,7 @@ impl<'di> de::Visitor<'di> for Visitor {
 	}
 }
 
+#[cfg(feature = "serde")]
 impl<'de> de::Deserialize<'de> for RangeProof {
 	fn deserialize<D>(d: D) -> Result<RangeProof, D::Error>
 	where
@@ -710,7 +715,7 @@ impl Secp256k1 {
 			success: success,
 			value: value,
 			message: ProofMessage::from_bytes(&message),
-			blinding: SecretKey([0; constants::SECRET_KEY_SIZE]),
+			blinding: SecretKey::from_slice_no_check(&[0; constants::SECRET_KEY_SIZE]).unwrap(),
 			mlen: mlen,
 			min: min,
 			max: max,
@@ -1145,8 +1150,7 @@ mod tests {
 	extern crate chrono;
 	use super::{Commitment, Error, Message, ProofMessage, ProofRange, RangeProof, Secp256k1};
 	use crate::key::{PublicKey, SecretKey, ONE_KEY, ZERO_KEY};
-	use crate::ContextFlag;
-	use crate::constants;
+	use constants;
 
 	use rand::{thread_rng, Rng};
 

@@ -45,6 +45,8 @@ pub const SECP256K1_START_NONE: c_uint = 1;
 pub const SECP256K1_START_VERIFY: c_uint = 1 | (1 << 8);
 /// Flag for context to enable signing precomputation
 pub const SECP256K1_START_SIGN: c_uint = 1 | (1 << 9);
+/// Flag for context to enable commitment precomputation
+pub const SECP256K1_START_COMMIT: c_uint = 1 | (1 << 10);
 /// Flag for keys to indicate uncompressed serialization format
 #[allow(unused_parens)]
 pub const SECP256K1_SER_UNCOMPRESSED: c_uint = (1 << 1);
