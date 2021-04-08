@@ -59,7 +59,7 @@ pub trait Signing: Context {}
 pub trait Verification: Context {}
 
 /// Marker trait for indicating that an instance of `Secp256k1` can be used for commitment.
-pub trait Commitment: Context {}
+pub trait Commit: Context {}
 
 /// Represents the set of capabilities needed for signing with a user preallocated memory.
 pub struct SignOnlyPreallocated<'buf> {
@@ -72,7 +72,7 @@ pub struct VerifyOnlyPreallocated<'buf> {
 }
 
 /// Represents the set of capabilities needed for commitment with a user preallocated memory.
-pub struct CommitmentOnlyPreallocated<'buf> {
+pub struct CommitOnlyPreallocated<'buf> {
     phantom: PhantomData<&'buf ()>,
 }
 
@@ -121,8 +121,8 @@ mod std_only {
     impl Verification for VerifyOnly {}
     impl Verification for All {}
 
-    impl Commitment for CommitOnly {}
-    impl Commitment for All {}
+    impl Commit for CommitOnly {}
+    impl Commit for All {}
 
     unsafe impl Context for SignOnly {
         const FLAGS: c_uint = ffi::SECP256K1_START_SIGN;
@@ -235,8 +235,8 @@ impl<'buf> Signing for AllPreallocated<'buf> {}
 impl<'buf> Verification for VerifyOnlyPreallocated<'buf> {}
 impl<'buf> Verification for AllPreallocated<'buf> {}
 
-impl<'buf> Commitment for CommitmentOnlyPreallocated<'buf> {}
-impl<'buf> Commitment for AllPreallocated<'buf> {}
+impl<'buf> Commit for CommitOnlyPreallocated<'buf> {}
+impl<'buf> Commit for AllPreallocated<'buf> {}
 
 unsafe impl<'buf> Context for SignOnlyPreallocated<'buf> {
     const FLAGS: c_uint = ffi::SECP256K1_START_SIGN;
@@ -256,7 +256,7 @@ unsafe impl<'buf> Context for VerifyOnlyPreallocated<'buf> {
     }
 }
 
-unsafe impl<'buf> Context for CommitmentOnlyPreallocated<'buf> {
+unsafe impl<'buf> Context for CommitOnlyPreallocated<'buf> {
     const FLAGS: c_uint = ffi::SECP256K1_START_COMMIT;
     const DESCRIPTION: &'static str = "commitment only";
 
@@ -266,7 +266,7 @@ unsafe impl<'buf> Context for CommitmentOnlyPreallocated<'buf> {
 }
 
 unsafe impl<'buf> Context for AllPreallocated<'buf> {
-    const FLAGS: c_uint = SignOnlyPreallocated::FLAGS | VerifyOnlyPreallocated::FLAGS | CommitmentOnlyPreallocated::FLAGS;
+    const FLAGS: c_uint = SignOnlyPreallocated::FLAGS | VerifyOnlyPreallocated::FLAGS | CommitOnlyPreallocated::FLAGS;
     const DESCRIPTION: &'static str = "all capabilities";
 
     unsafe fn deallocate(_ptr: *mut u8, _size: usize) {
