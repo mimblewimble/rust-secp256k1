@@ -145,6 +145,7 @@ pub mod constants;
 pub mod ecdh;
 pub mod key;
 pub mod aggsig;
+pub mod pedersen;
 #[cfg(feature = "recovery")]
 pub mod recovery;
 
