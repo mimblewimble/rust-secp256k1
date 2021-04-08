@@ -16,12 +16,10 @@
 //! Support for shared secret computations
 //!
 
-use core::ptr;
 use core::ops::{FnMut, Deref};
 
 use key::{SecretKey, PublicKey};
 use ffi::{self, CPtr};
-use secp256k1_sys::types::{c_int, c_uchar, c_void};
 
 /// A tag used for recovering the public key from a compact signature
 #[derive(Copy, Clone)]
@@ -92,13 +90,6 @@ impl Deref for SharedSecret {
     }
 }
 
-
-unsafe extern "C" fn c_callback(output: *mut c_uchar, x: *const c_uchar, y: *const c_uchar, _data: *mut c_void) -> c_int {
-    ptr::copy_nonoverlapping(x, output, 32);
-    ptr::copy_nonoverlapping(y, output.offset(32), 32);
-    1
-}
-
 impl SharedSecret {
     /// Creates a new shared secret from a pubkey and secret key
     #[inline]
@@ -110,8 +101,6 @@ impl SharedSecret {
                 ss.get_data_mut_ptr(),
                 point.as_c_ptr(),
                 scalar.as_c_ptr(),
-                ffi::secp256k1_ecdh_hash_function_default,
-                ptr::null_mut(),
             )
         };
         // The default `secp256k1_ecdh_hash_function_default` should always return 1.
@@ -151,8 +140,6 @@ impl SharedSecret {
                 xy.as_mut_ptr(),
                 point.as_ptr(),
                 scalar.as_ptr(),
-                Some(c_callback),
-                ptr::null_mut(),
             )
         };
         // Our callback *always* returns 1.
@@ -200,38 +187,6 @@ mod tests {
         let sec_odd = SharedSecret::new_with_hash(&pk1, &sk1, |x,_| x.into());
         assert_eq!(sec1, sec2);
         assert_ne!(sec_odd, sec2);
-    }
-
-    #[test]
-    fn ecdh_with_hash_callback() {
-        let s = Secp256k1::signing_only();
-        let (sk1, pk1) = s.generate_keypair(&mut thread_rng());
-        let expect_result: [u8; 64] = [123; 64];
-        let mut x_out = [0u8; 32];
-        let mut y_out = [0u8; 32];
-        let result = SharedSecret::new_with_hash(&pk1, &sk1, |x, y| {
-            x_out = x;
-            y_out = y;
-            expect_result.into()
-        });
-        assert_eq!(&expect_result[..], &result[..]);
-        assert_ne!(x_out, [0u8; 32]);
-        assert_ne!(y_out, [0u8; 32]);
-    }
-
-    #[test]
-    fn test_c_callback() {
-        let x = [5u8; 32];
-        let y = [7u8; 32];
-        let mut output = [0u8; 64];
-        let res = unsafe { super::c_callback(output.as_mut_ptr(), x.as_ptr(), y.as_ptr(), ::ptr::null_mut()) };
-        assert_eq!(res, 1);
-        let mut new_x = [0u8; 32];
-        let mut new_y = [0u8; 32];
-        new_x.copy_from_slice(&output[..32]);
-        new_y.copy_from_slice(&output[32..]);
-        assert_eq!(x, new_x);
-        assert_eq!(y, new_y);
     }
 }
 

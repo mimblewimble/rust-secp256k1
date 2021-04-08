@@ -362,8 +362,6 @@ extern "C" {
         output: *mut c_uchar,
         pubkey: *const PublicKey,
         seckey: *const c_uchar,
-        hashfp: EcdhHashFn,
-        data: *mut c_void,
     ) -> c_int;
 
     // Extra keys
