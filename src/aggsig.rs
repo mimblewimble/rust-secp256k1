@@ -407,10 +407,10 @@ mod tests {
 		add_signatures_single, export_secnonce_single, sign_single, verify_single, verify_batch,
 		AggSigContext, Secp256k1,
 	};
-	use crate::ffi;
-	use crate::key::{PublicKey, SecretKey};
+	use ffi;
+	use key::{PublicKey, SecretKey};
 	use rand::{thread_rng, Rng};
-	use crate::{AggSigPartialSignature, Message, Signature};
+	use {AggSigPartialSignature, Message, Signature};
 
 	#[test]
 	fn test_aggsig_multisig() {

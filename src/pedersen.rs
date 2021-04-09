@@ -1238,7 +1238,7 @@ mod tests {
 
 	#[test]
 	fn test_verify_commit_sum_random_keys_switch() {
-		let secp = Secp256k1::commit_only();
+		let secp = Secp256k1::new();
 
 		fn commit(value: u64, blinding: SecretKey) -> Commitment {
 			let secp = Secp256k1::commit_only();
@@ -1388,12 +1388,13 @@ mod tests {
         blind2_raw[30] = rng.gen::<u8>();
         blind2_raw[31] = rng.gen::<u8>();
         let value: u64 = blind2_raw[30] as u64 * 256 + blind2_raw[31] as u64;
+		let blind2 = SecretKey::from_slice(&blind2_raw).unwrap();
 		assert_eq!(secp.commit(value, blind.clone()).unwrap(), secp.commit_blind(blind2, blind.clone()).unwrap());
 	}
 
 	#[test]
 	fn test_range_proof() {
-		let secp = Secp256k1::commit_only();
+		let secp = Secp256k1::new();
 		let blinding = SecretKey::new(&mut thread_rng());
 		let commit = secp.commit(7, blinding.clone()).unwrap();
 		let msg = ProofMessage::empty();
@@ -1432,7 +1433,7 @@ mod tests {
 	#[test]
 	fn test_bullet_proof_single() {
 		// Test Bulletproofs without message
-		let secp = Secp256k1::commit_only();
+		let secp = Secp256k1::new();
 		let blinding = SecretKey::new(&mut thread_rng());
 		let value = 12345678;
 		let commit = secp.commit(value, blinding.clone()).unwrap();
@@ -1551,7 +1552,7 @@ mod tests {
 	fn test_bullet_proof_multisig() {
 		let multisig_bp =
 			|v, nonce: SecretKey, ca, cb, ba, bb, msg, extra| -> (RangeProof, Result<ProofRange, Error>) {
-				let secp = Secp256k1::commit_only();
+				let secp = Secp256k1::new();
 				let blinding_a: SecretKey = ba;
 				let value: u64 = v;
 				let partial_commit_a: Commitment = ca;
@@ -1830,7 +1831,7 @@ mod tests {
 
 	#[test]
 	fn rewind_empty_message() {
-		let secp = Secp256k1::commit_only();
+		let secp = Secp256k1::new();
 		let blinding = SecretKey::new(&mut thread_rng());
 		let nonce = SecretKey::new(&mut thread_rng());
 		let value = <u64>::max_value() - 1;
@@ -1850,7 +1851,7 @@ mod tests {
 
 	#[test]
 	fn rewind_message() {
-		let secp = Secp256k1::commit_only();
+		let secp = Secp256k1::new();
 		let blinding = SecretKey::new(&mut thread_rng());
 		let nonce = SecretKey::new(&mut thread_rng());
 		let value = <u64>::max_value() - 1;
@@ -1880,7 +1881,7 @@ mod tests {
 		use chrono::Utc;
 		let nano_to_millis = 1.0 / 1_000_000.0;
 
-		let secp = Secp256k1::commit_only();
+		let secp = Secp256k1::new();
 		let blinding = SecretKey::new(&mut thread_rng());
 		let value = 12345678;
 
@@ -1920,7 +1921,7 @@ mod tests {
 		let mut commits: Vec<Commitment> = vec![];
 		let mut proofs: Vec<RangeProof> = vec![];
 
-		let secp = Secp256k1::commit_only();
+		let secp = Secp256k1::new();
 		let blinding = SecretKey::new(&mut thread_rng());
 		let rewind_nonce  = SecretKey::new(&mut thread_rng());
 		let private_nonce = SecretKey::new(&mut thread_rng());
