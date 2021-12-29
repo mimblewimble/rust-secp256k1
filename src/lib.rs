@@ -135,6 +135,7 @@ pub use secp256k1_sys as ffi;
 #[cfg(any(test, feature = "rand"))] use rand::Rng;
 #[cfg(any(test, feature = "std"))] extern crate core;
 #[cfg(all(test, target_arch = "wasm32"))] extern crate wasm_bindgen_test;
+#[cfg(any(test))] extern crate chrono;
 
 use core::{fmt, ptr, str};
 
@@ -144,7 +145,8 @@ mod context;
 pub mod constants;
 pub mod ecdh;
 pub mod key;
-pub mod schnorrsig;
+pub mod aggsig;
+pub mod pedersen;
 #[cfg(feature = "recovery")]
 pub mod recovery;
 
@@ -165,6 +167,10 @@ use bitcoin_hashes::Hash;
 /// An ECDSA signature
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Signature(ffi::Signature);
+
+/// An AggSig partial signature
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct AggSigPartialSignature(ffi::AggSigPartialSignature);
 
 /// A DER serialized Signature
 #[derive(Copy, Clone)]
@@ -426,6 +432,41 @@ impl From<ffi::Signature> for Signature {
     }
 }
 
+impl AggSigPartialSignature {
+
+    /// Obtains a raw pointer suitable for use with FFI functions
+    #[inline]
+    pub fn as_ptr(&self) -> *const ffi::AggSigPartialSignature {
+        &self.0
+    }
+    
+    /// Obtains a raw mutable pointer suitable for use with FFI functions
+    #[inline]
+    pub fn as_mut_ptr(&mut self) -> *mut ffi::AggSigPartialSignature {
+        &mut self.0
+    }
+}
+
+
+impl CPtr for AggSigPartialSignature {
+    type Target = ffi::AggSigPartialSignature;
+    fn as_c_ptr(&self) -> *const Self::Target {
+        self.as_ptr()
+    }
+
+    fn as_mut_c_ptr(&mut self) -> *mut Self::Target {
+        self.as_mut_ptr()
+    }
+}
+
+/// Creates a new signature from a FFI signature
+impl From<ffi::AggSigPartialSignature> for AggSigPartialSignature {
+    #[inline]
+    fn from(sig: ffi::AggSigPartialSignature) -> AggSigPartialSignature {
+        AggSigPartialSignature(sig)
+    }
+}
+
 
 #[cfg(feature = "serde")]
 impl ::serde::Serialize for Signature {
@@ -528,6 +569,14 @@ pub enum Error {
     TweakCheckFailed,
     /// Didn't pass enough memory to context creation with preallocated memory
     NotEnoughMemory,
+    /// Error creating partial signature
+    PartialSigFailure,
+    /// Bad commit
+    InvalidCommit,
+    /// Summing commitments led to incorrect result
+    IncorrectCommitSum,
+    /// Range proof is invalid
+    InvalidRangeProof,
 }
 
 impl Error {
@@ -542,6 +591,10 @@ impl Error {
             Error::InvalidTweak => "secp: bad tweak",
             Error::TweakCheckFailed => "secp: xonly_pubkey_tewak_add_check failed",
             Error::NotEnoughMemory => "secp: not enough memory allocated",
+            Error::PartialSigFailure => "secp: partial sig (aggsig) failure",
+            Error::InvalidCommit => "secp: malformed commit",
+            Error::IncorrectCommitSum => "secp: invalid pedersen commitment sum",
+            Error::InvalidRangeProof => "secp: invalid range proof",
         }
     }
 }

@@ -21,6 +21,7 @@ use core::{fmt, str};
 
 use super::{from_hex, Secp256k1};
 use super::Error::{self, InvalidPublicKey, InvalidSecretKey};
+use Commit;
 use Signing;
 use Verification;
 use constants;
@@ -63,9 +64,15 @@ pub const ONE_KEY: SecretKey = SecretKey([0, 0, 0, 0, 0, 0, 0, 0,
                                           0, 0, 0, 0, 0, 0, 0, 0,
                                           0, 0, 0, 0, 0, 0, 0, 1]);
 
+/// The number 0 encoded as a secret key
+pub const ZERO_KEY: SecretKey = SecretKey([0, 0, 0, 0, 0, 0, 0, 0,
+                                           0, 0, 0, 0, 0, 0, 0, 0,
+                                           0, 0, 0, 0, 0, 0, 0, 0,
+                                           0, 0, 0, 0, 0, 0, 0, 0]);
+                                         
 /// A Secp256k1 public key, used for verification of signatures
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
-pub struct PublicKey(ffi::PublicKey);
+pub struct PublicKey(pub ffi::PublicKey);
 
 impl fmt::LowerHex for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -148,13 +155,26 @@ impl SecretKey {
         }
     }
 
+    /// Converts a `SECRET_KEY_SIZE`-byte slice to a secret key without checking
+    #[inline]
+    pub fn from_slice_no_check(data: &[u8])-> Result<SecretKey, Error> {
+        match data.len() {
+            constants::SECRET_KEY_SIZE => {
+                let mut ret = [0; constants::SECRET_KEY_SIZE];
+                ret[..].copy_from_slice(data);
+                Ok(SecretKey(ret))
+            }
+            _ => Err(InvalidSecretKey)
+        }
+    }
+
     #[inline]
     /// Negates one secret key.
     pub fn negate_assign(
         &mut self
     ) {
         unsafe {
-            let res = ffi::secp256k1_ec_seckey_negate(
+            let res = ffi::secp256k1_ec_privkey_negate(
                 ffi::secp256k1_context_no_precomp,
                 self.as_mut_c_ptr()
             );
@@ -174,7 +194,7 @@ impl SecretKey {
             return Err(Error::InvalidTweak);
         }
         unsafe {
-            if ffi::secp256k1_ec_seckey_tweak_add(
+            if ffi::secp256k1_ec_privkey_tweak_add(
                 ffi::secp256k1_context_no_precomp,
                 self.as_mut_c_ptr(),
                 other.as_c_ptr(),
@@ -199,7 +219,7 @@ impl SecretKey {
             return Err(Error::InvalidTweak);
         }
         unsafe {
-            if ffi::secp256k1_ec_seckey_tweak_mul(
+            if ffi::secp256k1_ec_privkey_tweak_mul(
                 ffi::secp256k1_context_no_precomp,
                 self.as_mut_c_ptr(),
                 other.as_c_ptr(),
@@ -216,6 +236,24 @@ impl SecretKey {
 serde_impl!(SecretKey, constants::SECRET_KEY_SIZE);
 
 impl PublicKey {
+    /// Creates a new public key as the sum of the provided keys
+    #[inline]
+    pub fn from_combination<C: Commit>(secp: &Secp256k1<C>, in_keys: Vec<&PublicKey>)
+                         -> Result<PublicKey, Error> {
+        let mut retkey = unsafe {PublicKey::from(ffi::PublicKey::new())};
+        let in_vec:Vec<*const ffi::PublicKey> = in_keys.iter()
+        .map(|pk| pk.as_ptr())
+        .collect();
+        unsafe {
+            if ffi::secp256k1_ec_pubkey_combine(secp.ctx, &mut retkey.0 as *mut _,
+                                                  in_vec.as_ptr(), in_vec.len() as i32) == 1 {
+                Ok(retkey)
+            } else {
+                Err(InvalidPublicKey)
+            }
+        }
+    }
+
     /// Obtains a raw const pointer suitable for use with FFI functions
     #[inline]
     pub fn as_ptr(&self) -> *const ffi::PublicKey {

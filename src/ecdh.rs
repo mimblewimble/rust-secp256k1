@@ -92,7 +92,6 @@ impl Deref for SharedSecret {
     }
 }
 
-
 unsafe extern "C" fn c_callback(output: *mut c_uchar, x: *const c_uchar, y: *const c_uchar, _data: *mut c_void) -> c_int {
     ptr::copy_nonoverlapping(x, output, 32);
     ptr::copy_nonoverlapping(y, output.offset(32), 32);
@@ -110,8 +109,6 @@ impl SharedSecret {
                 ss.get_data_mut_ptr(),
                 point.as_c_ptr(),
                 scalar.as_c_ptr(),
-                ffi::secp256k1_ecdh_hash_function_default,
-                ptr::null_mut(),
             )
         };
         // The default `secp256k1_ecdh_hash_function_default` should always return 1.
@@ -151,8 +148,6 @@ impl SharedSecret {
                 xy.as_mut_ptr(),
                 point.as_ptr(),
                 scalar.as_ptr(),
-                Some(c_callback),
-                ptr::null_mut(),
             )
         };
         // Our callback *always* returns 1.
@@ -218,7 +213,6 @@ mod tests {
         assert_ne!(x_out, [0u8; 32]);
         assert_ne!(y_out, [0u8; 32]);
     }
-
     #[test]
     fn test_c_callback() {
         let x = [5u8; 32];
